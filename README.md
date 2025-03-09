@@ -47,3 +47,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 ## License (许可)
 
 This project is licensed under the [MIT License](LICENSE).  (本项目使用 MIT 许可)
+LLMAIVSGomoku: A Gomoku (Five-in-a-row) game powered by Large Language Models (LLMs). Experience AI vs AI battles or challenge the AI yourself! 
