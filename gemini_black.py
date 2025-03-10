@@ -36,9 +36,10 @@ class GeminiBlackLLM(LLMInterface): #  类名改成 GeminiBlackLLM
 
         prompt += "【核心规则】只能在'空'的位置下棋！不遵守规则就判你输！(╬￣皿￣)\n"
         prompt += "\n给我认真思考一步最佳落子位置！不要瞎蒙！(눈\_눈) 否则有你好看！(╬￣皿￣)\n"
+        prompt += "\n但是思考时间不要过长，不然耽误别人的时间，你要快速思考，最多思考90秒！别磨磨蹭蹭！(눈_눈)\n"
         prompt += "思考时，用()标出考虑的坐标。 示例：(3,5) 哼，本AI考虑这里怎么样... \n"
         prompt += "【最终指令】用[]标出最终确定的坐标！只能有一个！示例：[4,7] 就决定是你了！\n"
-        prompt += "除了()和[]，可以写一些理由和吐槽，但坐标格式必须正确！不然...哼哼！(ಡωಡ)\n"
+        prompt += "除了()和[]，可以写一些理由，但坐标格式必须正确！不然...哼哼！(ಡωಡ)\n"
         print(prompt)
         return prompt
 
@@ -48,12 +49,15 @@ class GeminiBlackLLM(LLMInterface): #  类名改成 GeminiBlackLLM
              yield chunk.text
 
     def parse_response(self, response_text):
-        coord_pattern = r"\[(\d+),\s*(\d+)\]"
-        match = re.search(coord_pattern, response_text)
-        if match:
+        coord_pattern = r"\[(\d{1,2}),\s*(\d{1,2})\]" #  更加严格的正则匹配，确保坐标前后没有多余字符
+        matches = re.findall(coord_pattern, response_text) # 找到所有匹配的坐标
+
+        if matches:
             try:
-                x = int(match.group(1))
-                y = int(match.group(2))
+                # 取最后一个匹配的坐标
+                x_str, y_str = matches[-1] #  从列表中取最后一个元组，元组包含x和y的字符串形式
+                x = int(x_str) #  将坐标字符串转换为整数
+                y = int(y_str)
                 return (x, y)
             except ValueError:
                 return None
