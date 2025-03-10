@@ -17,3 +17,4 @@ class LLMInterface(ABC):
     def parse_response(self, response_text):
         """解析 LLM 的回复，提取坐标"""
         pass
+
