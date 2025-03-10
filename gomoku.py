@@ -1,4 +1,3 @@
-# gomoku.py
 import tkinter as tk
 from tkinter import messagebox, LabelFrame, Radiobutton, StringVar, Text
 from tkinter.ttk import Combobox
@@ -11,17 +10,16 @@ from llm_interface import LLMInterface
 from gemini import GeminiLLM
 from deepseek import DeepSeekLLM
 from gemini_black import GeminiBlackLLM  # 导入 黑棋 Gemini
-from deepseek_black import DeepSeekBlackLLM # 导入 黑棋 DeepSeek
+from deepseek_black import DeepSeekBlackLLM  # 导入 黑棋 DeepSeek
 from QWQ import QWQ
-from QWQ_black import QWQBlackLLM  # 导入 黑棋 Gemini
+from QWQ_black import QWQBlackLLM  # 导入 黑棋 QWQ
 
+# os.environ["HTTP_PROXY"] = "http://127.0.0.1:10808"
+# os.environ["HTTPS_PROXY"] = "http://127.0.0.1:10808"
 
-os.environ["HTTP_PROXY"] = "http://127.0.0.1:10808"
-
-PROMPT_COLOR = "blue"  # prompt 的颜色
+PROMPT_COLOR = "blue"   # prompt 的颜色
 OUTPUT_COLOR = "green"  # LLM 输出的颜色
-ERROR_COLOR = "red"    # 错误的颜色
-os.environ["HTTPS_PROXY"] = "http://127.0.0.1:10808"
+ERROR_COLOR = "red"     # 错误的颜色
 
 class Gomoku:
     def __init__(self, master):
@@ -37,7 +35,7 @@ class Gomoku:
         self.llm_api_type = "Gemini"
         self.llm_ai_color = "White"  # 默认 AI 执白棋
         self.llm_retry_count = 0
-        
+
         # 新增 AI对战模式的属性
         self.black_llm_type = "Gemini"
         self.white_llm_type = "DeepSeek"
@@ -65,6 +63,12 @@ class Gomoku:
         # 设置画布大小
         self.canvas_width = self.size * self.grid_size + 30
         self.canvas_height = self.size * self.grid_size + 80
+
+        # 创建日志文件（追加模式），分别记录黑棋和白棋的输出
+        self.black_log_file = open("black_output.log", "a", encoding="utf-8")
+        self.white_log_file = open("white_output.log", "a", encoding="utf-8")
+        # 窗口关闭时关闭日志文件
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # 布局：采用三列布局
         # 第一列：黑棋窗口
@@ -96,14 +100,10 @@ class Gomoku:
 
         pvp_radio = Radiobutton(mode_frame, text="双人对战 (PVP)", variable=self.mode_var, value="PVP", command=self.update_game_mode)
         pvp_radio.pack(side=tk.LEFT, padx=10)
-
         pve_radio = Radiobutton(mode_frame, text="人机对战 (PVE)", variable=self.mode_var, value="PVE", command=self.update_game_mode)
         pve_radio.pack(side=tk.LEFT, padx=10)
-
         pvllm_radio = Radiobutton(mode_frame, text="与LLM对战 (PVLLM)", variable=self.mode_var, value="PVLLM", command=self.update_game_mode)
         pvllm_radio.pack(side=tk.LEFT, padx=10)
-        
-        # 新增 AI对战 选项
         aivai_radio = Radiobutton(mode_frame, text="AI对战 (AIvsAI)", variable=self.mode_var, value="AIvsAI", command=self.update_game_mode)
         aivai_radio.pack(side=tk.LEFT, padx=10)
 
@@ -123,11 +123,11 @@ class Gomoku:
         white_radio.pack(side=tk.LEFT)
         black_radio = Radiobutton(llm_color_frame, text="黑棋", variable=self.llm_color_var, value="Black", command=self.update_llm_ai_color)
         black_radio.pack(side=tk.LEFT)
-        
+
         # AI对战设置框（跨三列）
         aivai_frame = LabelFrame(master, text="AI对战设置 (选择黑白方AI)")
         aivai_frame.grid(row=3, column=0, columnspan=3, pady=5, sticky="ew")
-        
+
         # 黑棋AI选择
         black_ai_frame = LabelFrame(aivai_frame, text="黑棋AI")
         black_ai_frame.pack(side=tk.LEFT, padx=20)
@@ -135,7 +135,7 @@ class Gomoku:
         black_llm_combobox = Combobox(black_ai_frame, textvariable=self.black_llm_var, values=list(self.llm_models.keys()))
         black_llm_combobox.pack(side=tk.LEFT, padx=10)
         black_llm_combobox.bind("<<ComboboxSelected>>", self.update_black_llm_type)
-        
+
         # 白棋AI选择
         white_ai_frame = LabelFrame(aivai_frame, text="白棋AI")
         white_ai_frame.pack(side=tk.LEFT, padx=20)
@@ -143,7 +143,7 @@ class Gomoku:
         white_llm_combobox = Combobox(white_ai_frame, textvariable=self.white_llm_var, values=list(self.llm_models.keys()))
         white_llm_combobox.pack(side=tk.LEFT, padx=10)
         white_llm_combobox.bind("<<ComboboxSelected>>", self.update_white_llm_type)
-        
+
         # AI思考延迟设置
         delay_frame = LabelFrame(aivai_frame, text="AI思考延迟(毫秒)")
         delay_frame.pack(side=tk.LEFT, padx=20)
@@ -160,18 +160,25 @@ class Gomoku:
         # 按钮区（跨三列）
         button_frame = tk.Frame(master)
         button_frame.grid(row=4, column=0, columnspan=3, pady=5)
-
         restart_button = tk.Button(button_frame, text="重新开始", command=self.restart_game)
         restart_button.pack(side=tk.LEFT, padx=10)
+
+    def on_closing(self):
+        try:
+            self.black_log_file.close()
+            self.white_log_file.close()
+        except Exception as e:
+            print("关闭日志文件时出错:", e)
+        self.master.destroy()
 
     def update_black_llm_type(self, event):
         self.black_llm_type = self.black_llm_var.get()
         print(f"黑棋AI已设置为: {self.black_llm_type}")
-    
+
     def update_white_llm_type(self, event):
         self.white_llm_type = self.white_llm_var.get()
         print(f"白棋AI已设置为: {self.white_llm_type}")
-    
+
     def update_ai_delay(self, event):
         try:
             self.ai_move_delay = int(self.delay_var.get())
@@ -179,7 +186,7 @@ class Gomoku:
         except ValueError:
             self.ai_move_delay = 1000
             print("延迟设置无效，使用默认值1000毫秒")
-    
+
     def start_aivai_game(self):
         """开始AI对战模式"""
         self.game_mode = "AIvsAI"
@@ -187,31 +194,37 @@ class Gomoku:
         self.game_over = False
         self.llm_retry_count = 0
         self.master.after(500, self.aivai_move)  # 稍微延迟后开始第一步
-    
+
     def aivai_move(self):
         """AI对战模式下的走棋逻辑"""
         if self.game_over:
             return
-            
+
         # 决定当前应该走棋的AI
         current_color = "Black" if self.player == 1 else "White"
         current_llm_type = self.black_llm_type if self.player == 1 else self.white_llm_type
-        
+
         # 设置当前LLM
         self.current_llm = self.llm_models[current_llm_type][current_color]
-        
+
         # 黑棋和白棋的重试次数应该分开计算
         if self.llm_retry_count >= 3:
-            self.display_llm_response(f"{current_llm_type} ({current_color} 棋) 连续犯错太多次了！哼！(눈_눈) 小鬼AI决定直接投降！\n", player_color=current_color)
+            self.display_llm_response(
+                f"{current_llm_type} ({current_color} 棋) 连续犯错太多次了！哼！(눈_눈) 小鬼AI决定直接投降！\n",
+                player_color=current_color
+            )
             self.game_over = True
             return
-            
+
         board_state = self.get_board_state()
         prompt = self.current_llm.create_prompt(board_state, current_color)
-        self.display_llm_response(f"发送给 {current_llm_type} ({current_color} 棋) 的 Prompt:\n{prompt}\n", text_type="prompt", player_color=current_color)
-        
-        llm_response_text = ""
-        
+        self.display_llm_response(
+            f"发送给 {current_llm_type} ({current_color} 棋) 的 Prompt:\n{prompt}\n",
+            text_type="prompt", player_color=current_color
+        )
+
+        llm_response_text = ""  # 初始化完整回复字符串
+
         def stream_llm_response():
             nonlocal llm_response_text
             try:
@@ -221,44 +234,49 @@ class Gomoku:
                         if chunk:
                             response_part = chunk
                             self.display_llm_response(response_part, player_color=current_color)
-                            llm_response_text += response_part
+                            llm_response_text += response_part  # 累加回复内容
             except Exception as e:
                 error_message = f"和 {current_llm_type} ({current_color} 棋) API 通信出错啦！ (*/ω＼*) 错误信息：{e}\n"
                 messagebox.showerror("API Error", error_message)
                 self.game_over = True
                 self.display_llm_response(error_message, text_type="error", player_color=current_color)
                 return
-                
-            self.display_llm_response(f"\n{current_llm_type} ({current_color} 棋) 的原始回复:\n{llm_response_text}\n", player_color=current_color)
-            move_coords = self.current_llm.parse_response(llm_response_text)
-            
+
+            move_coords = self.current_llm.parse_response(llm_response_text)  # 在 stream 结束后解析完整回复
+
             if move_coords:
                 x, y = move_coords
-                
+
                 if 0 <= x < self.size and 0 <= y < self.size and self.board[x][y] == 0:
                     self.board[x][y] = self.player
                     self.draw_piece(x, y)
-                    
+
                     if self.check_win(x, y):
                         self.announce_winner_aivai(current_llm_type, current_color)
                         return
-                        
+
                     self.player = 3 - self.player
                     self.llm_retry_count = 0
-                    
+
                     # 一定延迟后，让另一个AI继续走棋
                     self.master.after(self.ai_move_delay, self.aivai_move)
                 else:
                     self.llm_retry_count += 1
-                    self.display_llm_response(f"{current_llm_type} ({current_color} 棋) 返回了无效的坐标！小鬼AI表示不服！(╯▔皿▔)╯ 这是第{self.llm_retry_count}次犯错了！重新思考！\n", player_color=current_color)
+                    self.display_llm_response(
+                        f"{current_llm_type} ({current_color} 棋) 返回了无效的坐标！小鬼AI表示不服！(╯▔皿▔)╯ 这是第{self.llm_retry_count}次犯错了！重新思考！\n",
+                        player_color=current_color
+                    )
                     self.master.after(200, self.aivai_move)
             else:
                 self.llm_retry_count += 1
-                self.display_llm_response(f"{current_llm_type} ({current_color} 棋) 没给出坐标！这个笨蛋AI！(╯‵□′)╯︵┻━┻ 这是第{self.llm_retry_count}次犯错了！重新思考！\n", player_color=current_color)
+                self.display_llm_response(
+                    f"{current_llm_type} ({current_color} 棋) 没给出坐标！这个笨蛋AI！(╯‵□′)╯︵┻━┻ 这是第{self.llm_retry_count}次犯错了！重新思考！\n",
+                    player_color=current_color
+                )
                 self.master.after(200, self.aivai_move)
-                
+
         threading.Thread(target=stream_llm_response).start()
-    
+
     def announce_winner_aivai(self, llm_type, color):
         """AI对战模式下的获胜公告"""
         messagebox.showinfo("AI对战结束！", f"{llm_type} ({color} 棋) 赢了！ 哼！(＾▽＾)")
@@ -337,10 +355,18 @@ class Gomoku:
             player_color = "Black" if self.player == 1 else "White"
         if player_color == "Black":
             widget = self.black_response_text
+            # 写入黑棋日志
+            self.black_log_file.write(text)
+            self.black_log_file.flush()
         elif player_color == "White":
             widget = self.white_response_text
+            # 写入白棋日志
+            self.white_log_file.write(text)
+            self.white_log_file.flush()
         else:
             widget = self.white_response_text
+            self.white_log_file.write(text)
+            self.white_log_file.flush()
 
         widget.config(state=tk.NORMAL)
         if text_type == "prompt":
@@ -368,7 +394,7 @@ class Gomoku:
             return  # 黑棋 AI 先手时，玩家不能抢先落子
 
         y = round((event.x - 30) / self.grid_size)
-        x = round((event.y - (30+30)) / self.grid_size)
+        x = round((event.y - (30 + 30)) / self.grid_size)
 
         if x < 0 or x >= self.size or y < 0 or y >= self.size:
             return
@@ -413,15 +439,21 @@ class Gomoku:
 
     def llm_move(self):
         if self.llm_retry_count >= 3:
-            self.display_llm_response(f"{self.current_llm.__class__.__name__} 连续犯错太多次了！哼！(눈_눈) 小鬼AI决定直接投降！\n", player_color=self.llm_ai_color)
+            self.display_llm_response(
+                f"{self.current_llm.__class__.__name__} 连续犯错太多次了！哼！(눈_눈) 小鬼AI决定直接投降！\n",
+                player_color=self.llm_ai_color
+            )
             self.game_over = True
             return
 
         board_state = self.get_board_state()
         prompt = self.current_llm.create_prompt(board_state, self.llm_ai_color)
-        self.display_llm_response(f"发送给 {self.llm_api_type} ({self.llm_ai_color} 棋) 的 Prompt:\n{prompt}\n", text_type="prompt", player_color=self.llm_ai_color)
+        self.display_llm_response(
+            f"发送给 {self.llm_api_type} ({self.llm_ai_color} 棋) 的 Prompt:\n{prompt}\n",
+            text_type="prompt", player_color=self.llm_ai_color
+        )
 
-        llm_response_text = ""
+        llm_response_text = ""  # 初始化 llm_response_text 变量！
 
         def stream_llm_response():
             nonlocal llm_response_text
@@ -432,7 +464,7 @@ class Gomoku:
                         if chunk:
                             response_part = chunk
                             self.display_llm_response(response_part, player_color=self.llm_ai_color)
-                            llm_response_text += response_part
+                            llm_response_text += response_part  # 累加回复内容！
             except Exception as e:
                 error_message = f"和 {self.llm_api_type} ({self.llm_ai_color} 棋) API 通信出错啦！ (*/ω＼*) 错误信息：{e}\n"
                 messagebox.showerror("API Error", error_message)
@@ -440,8 +472,7 @@ class Gomoku:
                 self.display_llm_response(error_message, text_type="error", player_color=self.llm_ai_color)
                 return
 
-            self.display_llm_response(f"\n{self.llm_api_type} ({self.llm_ai_color} 棋) 的原始回复:\n{llm_response_text}\n", player_color=self.llm_ai_color)
-            move_coords = self.current_llm.parse_response(llm_response_text)
+            move_coords = self.current_llm.parse_response(llm_response_text)  # 在 stream 结束后解析完整回复！
 
             if move_coords:
                 x, y = move_coords
@@ -458,11 +489,17 @@ class Gomoku:
                     self.llm_retry_count = 0
                 else:
                     self.llm_retry_count += 1
-                    self.display_llm_response(f"{self.llm_api_type} ({self.llm_ai_color} 棋) 返回了无效的坐标！小鬼AI表示不服！(╯▔皿▔)╯ 这是第{self.llm_retry_count}次犯错了！重新思考！\n", player_color=self.llm_ai_color)
+                    self.display_llm_response(
+                        f"{self.llm_api_type} ({self.llm_ai_color} 棋) 返回了无效的坐标！小鬼AI表示不服！(╯▔皿▔)╯ 这是第{self.llm_retry_count}次犯错了！重新思考！\n",
+                        player_color=self.llm_ai_color
+                    )
                     self.master.after(200, self.llm_move)
             else:
                 self.llm_retry_count += 1
-                self.display_llm_response(f"{self.llm_api_type} ({self.llm_ai_color} 棋) 没给出坐标！这个笨蛋AI！(╯‵□′)╯︵┻━┻ 这是第{self.llm_retry_count}次犯错了！重新思考！\n", player_color=self.llm_ai_color)
+                self.display_llm_response(
+                    f"{self.llm_api_type} ({self.llm_ai_color} 棋) 没给出坐标！这个笨蛋AI！(╯‵□′)╯︵┻━┻ 这是第{self.llm_retry_count}次犯错了！重新思考！\n",
+                    player_color=self.llm_ai_color
+                )
                 self.master.after(200, self.llm_move)
 
         threading.Thread(target=stream_llm_response).start()
